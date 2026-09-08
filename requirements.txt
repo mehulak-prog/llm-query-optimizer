@@ -1,0 +1,15 @@
+# Core (no external DB server needed for the default SQLite demo)
+anthropic>=0.39.0          # real LLM candidate generation (optional if mock_mode: true)
+pyyaml>=6.0
+tabulate>=0.9.0
+python-dotenv>=1.0.0
+
+# Optional: only needed once you swap in the Postgres backend
+psycopg2-binary>=2.9.9
+
+# Optional: only needed for the Groq free-tier prototyping path (llm.provider: groq)
+openai>=1.40.0
+
+# Optional: only needed if you swap in synthetic data generation with realistic distributions
+faker>=24.0.0
+numpy>=1.26.0

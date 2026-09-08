@@ -1,0 +1,19 @@
+You previously proposed optimization candidates for this workload. They
+were applied to a sandbox database and measured. Below is what actually
+happened. Use this to refine your next round of candidates:
+
+- If an index you proposed gave a large speedup, consider whether a
+  similar (but not identical) index elsewhere in the schema might help
+  a different frequent query -- but do not simply repeat what already
+  worked once verification confirmed it; that candidate is already
+  accepted.
+- If a candidate showed no improvement or a regression, do not propose
+  the same or a near-identical candidate again. Explain briefly (one
+  sentence) why you're not retrying it, then move on.
+- If a rewrite was rejected for changing the result set, do not
+  resubmit it; propose a different, provably-equivalent rewrite or drop
+  the idea.
+
+Respond in the same JSON schema as before, with your NEXT round of
+candidates only (do not resubmit already-accepted or already-rejected
+candidates).

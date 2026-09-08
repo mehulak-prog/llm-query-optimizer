@@ -1,0 +1,60 @@
+# Central configuration for the optimizer loop.
+# Everything here is meant to be edited by you as you swap in real
+# infrastructure. Nothing is hardcoded in the source beyond these defaults.
+
+llm:
+  provider: gemini          # "anthropic" (real, costs money), "groq" (free tier, tight TPM), or "gemini" (free tier, much higher TPM -- used for crash-testing the pipeline)
+  gemini_model: gemini-3.5-flash-lite  # used when provider is "gemini"
+  model: claude-sonnet-4-6  # used when provider is "anthropic"
+  groq_model: openai/gpt-oss-120b  # used when provider is "groq" -- Groq deprecated the llama-3.3-70b-versatile family; this is their current recommended general-purpose model as of Aug 2026
+  mock_mode: false          # flip to true to go back to the zero-cost heuristic
+  max_tokens: 16000  # Groq free tier caps TPM (tokens/minute) at 8000 for this model, and that limit covers prompt+completion combined -- 8000 alone left no room for the prompt itself and got rejected. 6000 leaves headroom while still giving more room than the original 4000 for reasoning tokens.
+  temperature: 0.4
+  max_refinement_rounds: 2  # how many times results get fed back to the LLM
+
+sandbox:
+  backend: postgres         # "sqlite" (default, zero-install) or "postgres"
+  sqlite:
+    source_db: data/sandbox.db
+    scratch_db: data/sandbox_scratch.db
+  postgres:
+    # Only used if backend: sqlite. Point this at a disposable instance
+    # (docker run, RDS snapshot clone, etc.) -- NEVER a production DB.
+    dsn: "host=localhost port=5432 dbname=sandbox user=postgres password=postgres"
+    template_db: sandbox_template   # cloned per-trial so trials don't interfere
+
+workload:
+  path: data/workload.json
+  repeat_runs: 5             # timing runs per query, median reported
+  warmup_runs: 1
+
+candidates:
+  max_indexes_per_round: 6
+  max_views_per_round: 2
+  max_rewrites_per_round: 4
+  max_index_storage_mb: 500   # per-candidate ceiling: candidates estimated above this are discarded pre-verification
+  shared_storage_budget_mb: 10  # TOTAL budget across all accepted candidates, applied identically to every system -- without this, a system that's simply less storage-conservative can "win" on speedup by spending more disk space than what it's being compared against, not by reasoning better. See enforce_shared_storage_budget() in reward.py.
+
+reward:
+  weight_runtime: 1.0
+  weight_storage_penalty: 0.15
+  weight_write_amplification_penalty: 0.02  # TEMPORARY stopgap, see note below   # indexes slow down writes; penalize accordingly
+  # ^ Was 0.2 -- an unvalidated placeholder that exceeded every real speedup
+  # this dataset/workload produced (typically 5-18%), so it rejected 100% of
+  # candidates regardless of quality. Lowered to 0.02 ONLY so accepted
+  # candidates are visible again while evaluating whether the LLM's choices
+  # look reasonable. This is not a real fix -- Phase 4 (measuring real
+  # write-path regression via timed INSERT/UPDATE/DELETE before/after each
+  # candidate, replacing this flat constant entirely) is still outstanding
+  # and must happen before any of these numbers go in a writeup.
+  min_speedup_to_recommend: 1.05   # must be >=5% faster to bother recommending
+
+write_bench:
+  rows: 5000
+  trials: 3  # rows per insert/update/delete cycle for write-path regression timing (Phase 4)
+
+benchmark:
+  baselines:
+    - explain_advisor
+    - rule_based
+  output_csv: experiments/results.csv
