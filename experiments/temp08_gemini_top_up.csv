@@ -1,0 +1,48 @@
+provider,temperature,run_index,num_proposed,num_accepted,num_rejected,best_speedup,avg_accepted_speedup,combined_speedup,total_index_storage_mb,error
+gemini,0.8,0,,,,,,,,"CandidateParseError: Index candidate missing required 'columns' field (or it was empty): {'table': 'customer', 'column_names': ['c_mktsegment', 'c_custkey'], 'index_type': 'BTREE', 'unique': False}
+Raw response: ```json
+{
+  ""indexes"": [
+    {
+      ""table"": ""customer"",
+      ""column_names"": [
+        ""c_mktsegment"",
+        ""c_custkey""
+      ],
+      ""index_type"": ""BTREE"",
+      ""unique"": false
+    },
+    {
+      ""table"": ""lineitem"",
+      ""column_names"": [
+        ""l_shipdate"",
+        ""l_returnflag"",
+        ""l_orderkey""
+      ],
+      ""index_type"": ""BTREE"",
+      ""unique"": false
+    },
+    {
+      ""table"": ""part"",
+      ""column_names"": [
+        ""p_category"",
+        ""p_partkey""
+      ],
+      ""index_type"": ""BTREE"",
+      ""unique"": false
+    },
+    {
+      ""table"": ""orders"",
+      ""column_names"": [
+        ""o_orderdate"",
+        ""o_orderkey""
+      ],
+      ""index_type"": ""BTREE"",
+      ""unique"": false
+    }
+  ],
+  ""rewrites"": []
+}
+```"
+gemini,0.8,1,9,1,8,1.1504172920719136,1.1504172920719136,1.1223680277864938,3.0517578125,
+gemini,0.8,2,8,1,7,1.1305987514572702,1.1305987514572702,1.1508813822502924,3.0517578125,

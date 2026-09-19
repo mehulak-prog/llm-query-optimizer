@@ -165,9 +165,9 @@ class LLMPlanner:
         response = self._client.messages.create(
             model=self.config["model"],
             max_tokens=self.config.get("max_tokens", 4000),
-            temperature=self.config.get("temperature", 0.4),
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
+            extra_body={"temperature": self.config.get("temperature", 0.4)},
         )
         raw_text = "".join(
             block.text for block in response.content if block.type == "text"

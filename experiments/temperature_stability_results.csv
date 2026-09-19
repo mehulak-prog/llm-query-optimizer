@@ -1,0 +1,67 @@
+provider,temperature,run_index,num_proposed,num_accepted,num_rejected,best_speedup,avg_accepted_speedup,combined_speedup,total_index_storage_mb,error
+gemini,0.0,0,9,3,6,1.155099729285629,1.1157487905952568,1.1565578539790946,5.4931640625,
+gemini,0.0,1,,,,,,,,"CandidateParseError: Index candidate missing required 'columns' field (or it was empty): {'table': 'customer', 'column': 'c_mktsegment', 'create_sql': 'CREATE INDEX idx_customer_c_mktsegment ON customer(c_mktsegment)'}
+Raw response: ```json
+{
+  ""indexes"": [
+    {
+      ""table"": ""customer"",
+      ""column"": ""c_mktsegment"",
+      ""create_sql"": ""CREATE INDEX idx_customer_c_mktsegment ON customer(c_mktsegment)""
+    },
+    {
+      ""table"": ""part"",
+      ""column"": ""p_category"",
+      ""create_sql"": ""CREATE INDEX idx_part_p_category ON part(p_category)""
+    },
+    {
+      ""table"": ""orders"",
+      ""column"": ""o_orderstatus"",
+      ""create_sql"": ""CREATE INDEX idx_orders_o_orderstatus ON orders(o_orderstatus)""
+    },
+    {
+      ""table"": ""supplier"",
+      ""column"": ""s_nationkey"",
+      ""create_sql"": ""CREATE INDEX idx_supplier_s_nationkey_suppkey ON supplier(s_nationkey)""
+    }
+  ],
+  ""rewrites"": []
+}
+```"
+gemini,0.0,2,5,1,4,1.1095210421853237,1.1095210421853237,1.151091866387452,3.0517578125,
+gemini,0.4,0,4,1,3,1.1521648933507462,1.1521648933507462,1.1287519859146138,2.288818359375,
+gemini,0.4,1,6,1,5,1.0993033884965941,1.0993033884965941,1.1538731732139234,3.0517578125,
+gemini,0.4,2,7,1,6,1.1254566385962368,1.1254566385962368,1.1296680169643185,3.0517578125,
+gemini,0.8,0,8,5,3,1.3737964120324577,1.1856498212343984,1.2515130230495692,8.5906982421875,
+gemini,0.8,1,5,0,5,1.0,1.0,,0.0,
+gemini,0.8,2,8,1,7,1.1409166589862982,1.1409166589862982,1.4189530682819635,3.0517578125,
+groq,0.0,0,4,2,2,1.1324444030518948,1.1214501999108037,0.9918210670302207,5.340576171875,
+groq,0.0,1,4,0,4,1.0,1.0,,0.0,
+groq,0.0,2,4,2,2,1.2726230899486641,1.1806726748556318,1.067135067780564,2.44140625,
+groq,0.4,0,,,,,,,,"CandidateParseError: Flat candidate array entry has unrecognized/missing 'type': {'type': 'create_index', 'table': 'customer', 'columns': ['c_mktsegment', 'c_custkey'], 'reason': 'covers the frequent query customer_by_mktsegment (filter on c_mktsegment and projection of c_custkey, c_name) and also helps the join in customer_orders_join by providing a leading column for the equality on c_custkey.', 'estimated_size_mb': 0.6}
+Raw response: ```json
+[
+  {
+    ""type"": ""create_index"",
+    ""table"": ""customer"",
+    ""columns"": [""c_mktsegment"", ""c_custkey""],
+    ""reason"": ""covers the frequent query customer_by_mktsegment (filter on c_mktsegment and projection of c_custkey, c_name) and also helps the join in customer_orders_join by providing a leading column for the equality on c_custkey."",
+    ""estimated_size_mb"": 0.6
+  },
+  {
+    ""type"": ""create_index"",
+    ""table"": ""orders"",
+    ""columns"": [""o_orderdate"", ""o_orderkey""],
+    ""reason"": ""supports orders_in_date_range (range on o_orderdate) and orders_sorted_by_date (order‑by on o_orderdate with limit) by allowing the planner to satisfy both the filter and the ordering without a separate sort step."",
+    ""estimated_size_mb"": 0.9
+  },
+  {
+    ""type"": ""create_index"",
+    ""table"": ""part"",
+    ""columns"": [""p_category"", ""p_partkey""],
+    ""reason"": ""optimises part_by_category and lineitem_part_join; the leading column p_category filters the category, and the included p_partkey enables a"
+groq,0.4,1,5,4,1,1.5584160503181186,1.4286433657562647,1.2859974072810523,6.1798095703125,
+groq,0.4,2,4,1,3,1.0737992016429994,1.0737992016429994,1.2854620465828412,0.91552734375,
+groq,0.8,0,6,4,2,1.390089399438475,1.3515126782005065,1.3683322330977203,6.9427490234375,
+groq,0.8,1,5,2,3,1.4373726454969695,1.3877019050345396,0.8467188558940838,9.802665710449219,
+groq,0.8,2,6,4,2,1.3884186246278525,1.2358329579549683,1.2732812256344272,7.781982421875,

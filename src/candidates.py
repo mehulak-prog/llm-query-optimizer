@@ -38,7 +38,8 @@ class IndexCandidate:
         # the generated index NAME a valid identifier (no spaces).
         base_cols = [c.split()[0] for c in self.columns]
         cols = "_".join(base_cols)
-        return f"idx_llm_{self.table}_{cols}"[:63]  # respect identifier length limits
+        # respect identifier length limits
+        return f"idx_llm_{self.table}_{cols}"[:63]
 
     def to_ddl(self) -> str:
         uniq = "UNIQUE " if self.unique else ""
@@ -94,7 +95,8 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def _validate_identifier(name: str, kind: str) -> None:
     if not _IDENTIFIER_RE.match(name):
-        raise CandidateParseError(f"Unsafe/invalid {kind} identifier: {name!r}")
+        raise CandidateParseError(
+            f"Unsafe/invalid {kind} identifier: {name!r}")
 
 
 def _normalize_flat_candidate_list(items: list, raw_text: str) -> dict:
@@ -163,7 +165,8 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
     text = raw_text.strip()
     # Strip markdown code fences if the model wrapped its JSON.
     if text.startswith("```"):
-        text = re.sub(r"^```(json)?\s*|\s*```$", "", text.strip(), flags=re.MULTILINE)
+        text = re.sub(r"^```(json)?\s*|\s*```$", "",
+                      text.strip(), flags=re.MULTILINE)
 
     try:
         data = json.loads(text)
@@ -190,7 +193,8 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
         #
         # Neither fallback relaxes validation -- CandidateParseError is
         # still raised loudly if no valid JSON payload can be found at all.
-        fence_matches = re.findall(r"```(?:json)?\s*(.*?)\s*```", raw_text, flags=re.DOTALL)
+        fence_matches = re.findall(
+            r"```(?:json)?\s*(.*?)\s*```", raw_text, flags=re.DOTALL)
         data = None
         if fence_matches:
             try:
@@ -199,7 +203,8 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
                 data = None
 
         if data is None:
-            start_candidates = [i for i in (text.find("{"), text.find("[")) if i != -1]
+            start_candidates = [i for i in (
+                text.find("{"), text.find("[")) if i != -1]
             if not start_candidates:
                 raise CandidateParseError(
                     f"LLM response was not valid JSON: {e}\nRaw: {raw_text[:500]}"
@@ -240,15 +245,31 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
     known_tables_set = set(known_tables)
 
     for idx in data.get("indexes", []):
-        table = idx["table"]
+        if not isinstance(idx, dict):
+            raise CandidateParseError(
+                f"Index candidate entry is not an object: {idx!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
+        table = idx.get("table")
+        if table is None:
+            raise CandidateParseError(
+                f"Index candidate missing required 'table' field: {idx!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
         if table not in known_tables_set:
             raise CandidateParseError(
                 f"Index proposed on unknown table: {table!r}\n"
                 f"Raw response: {raw_text[:1000]}"
             )
         _validate_identifier(table, "table")
+        columns = idx.get("columns")
+        if not columns:
+            raise CandidateParseError(
+                f"Index candidate missing required 'columns' field (or it "
+                f"was empty): {idx!r}\nRaw response: {raw_text[:1000]}"
+            )
         normalized_columns = []
-        for c in idx["columns"]:
+        for c in columns:
             # Postgres allows "col DESC"/"col ASC" directly in an index's
             # column list (it affects scan order for ORDER BY queries).
             # Some models (seen with Groq's gpt-oss-120b) include this
@@ -263,7 +284,8 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
                     f"name, optionally followed by ASC or DESC)"
                 )
             _validate_identifier(base, "column")
-            normalized_columns.append(f"{base} {direction}" if direction else base)
+            normalized_columns.append(
+                f"{base} {direction}" if direction else base)
 
         result.indexes.append(
             IndexCandidate(
@@ -275,22 +297,59 @@ def parse_llm_response(raw_text: str, known_tables: List[str]) -> CandidateSet:
         )
 
     for v in data.get("materialized_views", []):
-        _validate_identifier(v["name"], "view name")
+        if not isinstance(v, dict):
+            raise CandidateParseError(
+                f"View candidate entry is not an object: {v!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
+        name = v.get("name")
+        definition_sql = v.get("definition_sql")
+        if name is None:
+            raise CandidateParseError(
+                f"View candidate missing required 'name' field: {v!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
+        if not definition_sql:
+            raise CandidateParseError(
+                f"View candidate missing required 'definition_sql' field: {v!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
+        _validate_identifier(name, "view name")
         result.views.append(
             ViewCandidate(
-                name=v["name"],
-                definition_sql=v["definition_sql"],
+                name=name,
+                definition_sql=definition_sql,
                 rationale=v.get("rationale", ""),
                 replaces_query_names=v.get("replaces_query_names", []),
             )
         )
 
     for r in data.get("rewrites", []):
+        if not isinstance(r, dict):
+            raise CandidateParseError(
+                f"Rewrite candidate entry is not an object: {r!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
+        target_query_name = r.get("target_query_name")
+        original_sql = r.get("original_sql")
+        rewritten_sql = r.get("rewritten_sql")
+        missing = [
+            field_name for field_name, val in (
+                ("target_query_name", target_query_name),
+                ("original_sql", original_sql),
+                ("rewritten_sql", rewritten_sql),
+            ) if not val
+        ]
+        if missing:
+            raise CandidateParseError(
+                f"Rewrite candidate missing required field(s) {missing}: {r!r}\n"
+                f"Raw response: {raw_text[:1000]}"
+            )
         result.rewrites.append(
             RewriteCandidate(
-                target_query_name=r["target_query_name"],
-                original_sql=r["original_sql"],
-                rewritten_sql=r["rewritten_sql"],
+                target_query_name=target_query_name,
+                original_sql=original_sql,
+                rewritten_sql=rewritten_sql,
                 rationale=r.get("rationale", ""),
             )
         )

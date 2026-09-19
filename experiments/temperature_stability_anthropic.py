@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""
+Temperature-stability sweep, extended to support the paid Anthropic provider.
+Same design as temperature_stability.py (llm_planner only, baselines
+excluded -- they don't touch temperature and would waste real API spend
+achieving nothing for a stability check) plus anthropic_eval.py's typed
+spend-confirmation gate, so a mistyped command can't accidentally burn
+real money.
+
+Usage (run from project root):
+    python -m experiments.temperature_stability_anthropic --temps 0.0 0.4 0.8 --repeats 3
+    python -m experiments.temperature_stability_anthropic --temps 0.8 --repeats 5 --out experiments/anthropic_temp08_topup.csv
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import csv
+import os
+import statistics
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # isort:skip
+
+from dotenv import load_dotenv  # isort:skip
+import yaml  # isort:skip
+
+from src.benchmark import run_benchmark, write_csv  # isort:skip
+from src.workload import load_workload  # isort:skip
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+
+DEFAULT_TEMPS = [0.0, 0.4, 0.8]
+DEFAULT_REPEATS = 3
+
+
+def load_base_config() -> dict:
+    config_path = os.path.join(ROOT, "config.yaml")
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    config["sandbox"]["sqlite"]["source_db"] = os.path.join(
+        ROOT, config["sandbox"]["sqlite"]["source_db"]
+    )
+    config["sandbox"]["sqlite"]["scratch_db"] = os.path.join(
+        ROOT, config["sandbox"]["sqlite"]["scratch_db"]
+    )
+    config["workload"]["path"] = os.path.join(ROOT, config["workload"]["path"])
+    return config
+
+
+def ensure_sandbox_data(config: dict) -> None:
+    source_db = config["sandbox"]["sqlite"]["source_db"]
+    if not os.path.exists(source_db):
+        print(f"{source_db} not found -- generating synthetic sandbox data first...")
+        sys.path.insert(0, os.path.join(ROOT, "data"))
+        import generate_data
+
+        generate_data.build()
+
+
+def confirm_or_exit(temps: list[float], repeats: int, model: str) -> None:
+    total_runs = len(temps) * repeats
+    # Same per-run cost this session's real Anthropic runs actually showed
+    # ($0.26 / 6 runs), used here instead of the original pre-run estimate.
+    per_run_cost = 0.26 / 6
+    print("=" * 78)
+    print("REAL, PAID ANTHROPIC TEMPERATURE-STABILITY SWEEP -- confirm before proceeding")
+    print("=" * 78)
+    print(f"  Model:        {model}")
+    print(f"  Temperatures: {temps}")
+    print(f"  Repeats each: {repeats}")
+    print(f"  Total runs:   {total_runs} (llm_planner only -- baselines excluded, they don't use temperature)")
+    print(f"  Observed per-run cost so far: ~${per_run_cost:.3f}")
+    print(f"  Estimated total: ~${per_run_cost * total_runs:.2f}")
+    print("=" * 78)
+    answer = input("Type RUN to proceed, anything else to cancel: ").strip()
+    if answer != "RUN":
+        print("Cancelled -- no API calls made.")
+        sys.exit(0)
+
+
+def run_one(base_config: dict, workload, temperature: float, run_index: int) -> dict:
+    cfg = copy.deepcopy(base_config)
+    cfg["llm"]["provider"] = "anthropic"
+    cfg["llm"]["temperature"] = temperature
+    cfg["llm"]["mock_mode"] = False
+    cfg["benchmark"]["baselines"] = []  # baselines don't use temperature -- skip them
+    cfg["benchmark"]["output_csv"] = os.path.join(
+        ROOT, "experiments", "_anthropic_temp_stability_scratch.csv"
+    )
+
+    row = {
+        "provider": "anthropic",
+        "temperature": temperature,
+        "run_index": run_index,
+        "num_proposed": None,
+        "num_accepted": None,
+        "num_rejected": None,
+        "best_speedup": None,
+        "avg_accepted_speedup": None,
+        "combined_speedup": None,
+        "total_index_storage_mb": None,
+        "error": None,
+    }
+
+    max_connection_retries = 2
+    backoff_seconds = 10  # paid call -- worth a longer wait than the free-tier sweep
+
+    for attempt in range(max_connection_retries + 1):
+        try:
+            reports = run_benchmark(workload, cfg)
+            r = reports[0]  # baselines == [] means exactly one report: llm_planner
+            s = r.summary
+            row.update(
+                num_proposed=s["num_proposed"],
+                num_accepted=s["num_accepted"],
+                num_rejected=s["num_rejected"],
+                best_speedup=s["best_speedup"],
+                avg_accepted_speedup=s["avg_accepted_speedup"],
+                combined_speedup=(
+                    r.combined_effect.combined_speedup if r.combined_effect else None
+                ),
+                total_index_storage_mb=s["total_index_storage_mb"],
+            )
+            return row
+        except Exception as e:  # noqa: BLE001
+            is_connection_error = type(e).__name__ in (
+                "APIConnectionError", "ConnectionError", "Timeout", "TimeoutError",
+            )
+            if is_connection_error and attempt < max_connection_retries:
+                wait = backoff_seconds * (attempt + 1)
+                print(f"  .. transient {type(e).__name__}, retrying in {wait}s "
+                      f"(attempt {attempt + 1}/{max_connection_retries})...")
+                time.sleep(wait)
+                continue
+            row["error"] = f"{type(e).__name__}: {e}"
+            print(f"  !! run failed (temp={temperature}, run {run_index}): {row['error']}")
+            return row
+
+
+def summarize(rows: list[dict]) -> None:
+    print("\n" + "=" * 78)
+    print("SUMMARY -- per temperature, across repeats (Anthropic, llm_planner only)")
+    print("=" * 78)
+
+    temps = sorted({r["temperature"] for r in rows})
+    for temp in temps:
+        group = [r for r in rows if r["temperature"] == temp]
+        ok = [r for r in group if r["error"] is None]
+        failed = len(group) - len(ok)
+        print(f"\nanthropic @ temperature={temp}  ({len(ok)} ok, {failed} failed)")
+        if not ok:
+            print("  (no successful runs -- see errors above)")
+            continue
+        for metric in ("num_proposed", "num_accepted", "combined_speedup"):
+            vals = [r[metric] for r in ok if r[metric] is not None]
+            if not vals:
+                print(f"  {metric}: no data")
+                continue
+            mean = statistics.mean(vals)
+            stdev = statistics.stdev(vals) if len(vals) > 1 else 0.0
+            print(
+                f"  {metric:20s} mean={mean:6.3f}  stdev={stdev:6.3f}  "
+                f"range=[{min(vals):.3f}, {max(vals):.3f}]  (n={len(vals)})"
+            )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--temps", nargs="+", type=float, default=DEFAULT_TEMPS)
+    parser.add_argument("--repeats", type=int, default=DEFAULT_REPEATS)
+    parser.add_argument("--out", default=os.path.join(
+        ROOT, "experiments", "anthropic_temperature_stability_results.csv"))
+    args = parser.parse_args()
+
+    load_dotenv(os.path.join(ROOT, ".env"))
+
+    base_config = load_base_config()
+    ensure_sandbox_data(base_config)
+    workload = load_workload(base_config["workload"]["path"])
+
+    confirm_or_exit(args.temps, args.repeats, base_config["llm"]["model"])
+
+    total_runs = len(args.temps) * args.repeats
+    print(f"\nRunning {total_runs} total Anthropic calls...\n")
+
+    all_rows = []
+    run_counter = 0
+    for temp in args.temps:
+        for i in range(args.repeats):
+            run_counter += 1
+            print(f"[{run_counter}/{total_runs}] anthropic temp={temp} repeat={i + 1}/{args.repeats} ...")
+            all_rows.append(run_one(base_config, workload, temp, i))
+
+    with open(args.out, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(all_rows)
+    print(f"\nPer-run results written to {args.out}")
+
+    summarize(all_rows)
+
+
+if __name__ == "__main__":
+    main()

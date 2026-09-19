@@ -1,0 +1,4 @@
+system,num_proposed,num_accepted,num_rejected,best_speedup,avg_accepted_speedup,total_index_storage_mb,combined_workload_speedup
+llm_planner (this system),7,2,5,1.097,1.082,1.221,0.894
+explain_advisor,6,4,2,1.261,1.154,9.587,1.436
+rule_based,6,4,2,1.381,1.242,4.120,1.193

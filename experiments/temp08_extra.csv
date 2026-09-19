@@ -1,0 +1,52 @@
+provider,temperature,run_index,num_proposed,num_accepted,num_rejected,best_speedup,avg_accepted_speedup,combined_speedup,total_index_storage_mb,error
+gemini,0.8,0,,,,,,,,"CandidateParseError: Index candidate missing required 'columns' field (or it was empty): {'table': 'lineitem', 'column_names': ['l_shipdate', 'l_returnflag', 'l_orderkey', 'l_extendedprice', 'l_discount'], 'index_type': 'BTREE', 'rationale': 'Covering index for lineitem_by_shipdate_returnflag to eliminate table lookups and speed up date-range filtering.'}
+Raw response: ```json
+{
+  ""indexes"": [
+    {
+      ""table"": ""lineitem"",
+      ""column_names"": [
+        ""l_shipdate"",
+        ""l_returnflag"",
+        ""l_orderkey"",
+        ""l_extendedprice"",
+        ""l_discount""
+      ],
+      ""index_type"": ""BTREE"",
+      ""rationale"": ""Covering index for lineitem_by_shipdate_returnflag to eliminate table lookups and speed up date-range filtering.""
+    },
+    {
+      ""table"": ""customer"",
+      ""column_names"": [
+        ""c_mktsegment"",
+        ""c_custkey"",
+        ""c_name""
+      ],
+      ""index_type"": ""BTREE"",
+      ""rationale"": ""Index covering customer_by_mktsegment queries without accessing the heap.""
+    },
+    {
+      ""table"": ""part"",
+      ""column_names"": [
+        ""p_category"",
+        ""p_partkey"",
+        ""p_name"",
+        ""p_retailprice""
+      ],
+      ""index_type"": ""BTREE"",
+      ""rationale"": ""Covering index for part_by_category queries to avoid sequential scans.""
+    },
+    {
+      ""table"": ""orders"",
+      ""column_names"": [
+        ""o_orderdate"",
+        ""o_"
+gemini,0.8,1,7,5,2,1.5540657885621294,1.4279858505358058,1.2149574521541853,4.730224609375,
+gemini,0.8,2,4,2,2,1.1568070087700808,1.112617628861574,0.8701537898889369,5.340576171875,
+gemini,0.8,3,9,2,7,1.9367936459349715,1.5436142682920362,1.1935331984746633,9.238090515136719,
+gemini,0.8,4,,,,,,,,AttributeError: 'str' object has no attribute 'get'
+groq,0.8,0,6,4,2,1.2570630634444566,1.2191359389011514,1.0876565129503797,8.23974609375,
+groq,0.8,1,3,1,2,1.2543801026320116,1.2543801026320116,1.2019916335550573,9.116020202636719,
+groq,0.8,2,3,1,2,1.529531047461362,1.529531047461362,1.2715734314030387,9.116020202636719,
+groq,0.8,3,4,0,4,1.0,1.0,,0.0,
+groq,0.8,4,3,2,1,1.711583889433795,1.639250056307115,1.1111696982440142,3.0517578125,

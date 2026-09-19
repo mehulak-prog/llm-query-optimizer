@@ -7,12 +7,10 @@ import yaml
 config = yaml.safe_load(open("config.yaml"))
 pg = config["sandbox"]["postgres"]
 
-
 def backend_factory():
     b = PostgresBackend(pg["dsn"], pg["template_db"])
     b.clone_from_source()
     return b
-
 
 workload = load_workload(config["workload"]["path"])
 
@@ -36,7 +34,6 @@ result = verify_index_candidate_with_trials(
 
 print("write_baseline_seconds:", result.write_baseline_seconds)
 print("write_candidate_seconds:", result.write_candidate_seconds)
-print("regression:", result.write_candidate_seconds /
-      result.write_baseline_seconds - 1)
+print("regression:", result.write_candidate_seconds / result.write_baseline_seconds - 1)
 print("all trial ratios:", result.write_regression_trials)
 print("error:", result.error)
